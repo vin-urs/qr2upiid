@@ -1,14 +1,41 @@
-
-import { useRef } from "react";
+import { useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { useQRCode } from "@/hooks/useQRCode";
 import { useToast } from "@/hooks/use-toast";
-import { Upload } from "lucide-react";
+import { Upload, Copy } from "lucide-react";
+import { Input } from "@/components/ui/input";
 
 export function QRUpload() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { decodeQRCode } = useQRCode();
   const { toast } = useToast();
+  const [scannedUPI, setScannedUPI] = useState<string | null>(null);
+
+  const extractUPIId = (text: string) => {
+    try {
+      const url = new URL(text);
+      const pa = url.searchParams.get("pa");
+      return pa || text;
+    } catch {
+      return text;
+    }
+  };
+
+  const copyToClipboard = async (text: string) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      toast({
+        title: "Copied!",
+        description: "UPI ID copied to clipboard",
+      });
+    } catch {
+      toast({
+        title: "Error",
+        description: "Failed to copy to clipboard",
+        variant: "destructive",
+      });
+    }
+  };
 
   const handleUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -29,10 +56,15 @@ export function QRUpload() {
 
       decodeQRCode(imageData)
         .then(({ text, isUPI }) => {
-          toast({
-            title: isUPI ? "UPI QR Code Detected" : "QR Code Detected",
-            description: text,
-          });
+          if (isUPI) {
+            const upiId = extractUPIId(text);
+            setScannedUPI(upiId);
+          } else {
+            toast({
+              title: "QR Code Detected",
+              description: text,
+            });
+          }
         })
         .catch(() => {
           toast({
@@ -64,14 +96,34 @@ export function QRUpload() {
         onChange={handleUpload}
         className="hidden"
       />
-      <Button
-        onClick={() => fileInputRef.current?.click()}
-        variant="outline"
-        className="w-full glass"
-      >
-        <Upload className="mr-2 h-4 w-4" />
-        Upload QR Code
-      </Button>
+      {scannedUPI ? (
+        <div className="space-y-4">
+          <div className="relative">
+            <Input value={scannedUPI} readOnly className="pr-12 glass" />
+            <Button
+              size="icon"
+              variant="ghost"
+              className="absolute right-1 top-1 h-8 w-8"
+              onClick={() => copyToClipboard(scannedUPI)}
+              aria-label="Copy UPI ID"
+            >
+              <Copy className="h-4 w-4" />
+            </Button>
+          </div>
+          <Button onClick={() => setScannedUPI(null)} className="w-full">
+            Upload Another
+          </Button>
+        </div>
+      ) : (
+        <Button
+          onClick={() => fileInputRef.current?.click()}
+          variant="outline"
+          className="w-full glass"
+        >
+          <Upload className="mr-2 h-4 w-4" />
+          Upload QR Code
+        </Button>
+      )}
     </div>
   );
 }
