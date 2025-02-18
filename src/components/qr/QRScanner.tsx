@@ -1,20 +1,22 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { useQRCode } from "@/hooks/useQRCode";
 import { useToast } from "@/hooks/use-toast";
-import { Upload, Copy } from "lucide-react";
+import { Camera, CameraOff, Copy } from "lucide-react";
 import { Input } from "@/components/ui/input";
 
-export function QRUpload() {
-  const fileInputRef = useRef<HTMLInputElement>(null);
+export function QRScanner() {
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const [scanning, setScanning] = useState(false);
+  const [scannedUPI, setScannedUPI] = useState<string | null>(null);
   const { decodeQRCode } = useQRCode();
   const { toast } = useToast();
-  const [scannedUPI, setScannedUPI] = useState<string | null>(null);
 
   const extractUPIId = (text: string) => {
     try {
       const url = new URL(text);
-      const pa = url.searchParams.get("pa");
+      const pa = url.searchParams.get('pa');
       return pa || text;
     } catch {
       return text;
@@ -28,7 +30,7 @@ export function QRUpload() {
         title: "Copied!",
         description: "UPI ID copied to clipboard",
       });
-    } catch {
+    } catch (error) {
       toast({
         title: "Error",
         description: "Failed to copy to clipboard",
@@ -37,65 +39,90 @@ export function QRUpload() {
     }
   };
 
-  const handleUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
+  useEffect(() => {
+    let stream: MediaStream | null = null;
+    let animationFrame: number;
 
-    const img = new Image();
-    img.src = URL.createObjectURL(file);
+    const startScanning = async () => {
+      try {
+        // Try to access the rear camera (environment) first
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: "environment" },
+        });
 
-    img.onload = () => {
-      const canvas = document.createElement("canvas");
-      canvas.width = img.width;
-      canvas.height = img.height;
-      const ctx = canvas.getContext("2d");
-      if (!ctx) return;
+        // If the rear camera fails, try the default camera
+        if (!stream) {
+          stream = await navigator.mediaDevices.getUserMedia({ video: true });
+        }
 
-      ctx.drawImage(img, 0, 0);
-      const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+        if (videoRef.current) {
+          videoRef.current.srcObject = stream;
+          await videoRef.current.play();
+          scan();
+        }
+      } catch (error) {
+        console.error("Camera access error:", error);
+        toast({
+          title: "Error",
+          description: "Failed to access camera. Please ensure you have granted camera permissions.",
+          variant: "destructive",
+        });
+        setScanning(false);
+      }
+    };
+
+    const scan = () => {
+      if (!videoRef.current || !canvasRef.current || !scanning) return;
+
+      const canvas = canvasRef.current;
+      const video = videoRef.current;
+      const context = canvas.getContext("2d");
+      if (!context) return;
+
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+      context.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+      const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
 
       decodeQRCode(imageData)
         .then(({ text, isUPI }) => {
           if (isUPI) {
+            setScanning(false);
             const upiId = extractUPIId(text);
             setScannedUPI(upiId);
-          } else {
-            toast({
-              title: "QR Code Detected",
-              description: text,
-            });
           }
         })
         .catch(() => {
-          toast({
-            title: "Error",
-            description: "No QR code found in image",
-            variant: "destructive",
-          });
+          // Continue scanning
         });
 
-      URL.revokeObjectURL(img.src);
+      animationFrame = requestAnimationFrame(scan);
     };
 
-    img.onerror = () => {
-      toast({
-        title: "Error",
-        description: "Failed to load image",
-        variant: "destructive",
-      });
-      URL.revokeObjectURL(img.src);
+    if (scanning) {
+      startScanning();
+    } else {
+      if (stream) {
+        stream.getTracks().forEach((track) => track.stop());
+      }
+      if (animationFrame) {
+        cancelAnimationFrame(animationFrame);
+      }
+    }
+
+    return () => {
+      if (stream) {
+        stream.getTracks().forEach((track) => track.stop());
+      }
+      if (animationFrame) {
+        cancelAnimationFrame(animationFrame);
+      }
     };
-  };
+  }, [scanning, decodeQRCode, toast]);
 
   return (
-    <div className="w-full max-w-md mx-auto animate-fade-in">
-      <input
-        ref={fileInputRef}
-        type="file"
-        accept="image/*"
-        onChange={handleUpload}
-        className="hidden"
-      />
+    <div className="space-y-4 w-full max-w-md mx-auto animate-fade-in">
       {scannedUPI ? (
         <div className="space-y-4">
           <div className="relative">
@@ -111,21 +138,44 @@ export function QRUpload() {
             </Button>
           </div>
           <Button
-            onClick={() => setScannedUPI(null)}
+            onClick={() => {
+              setScannedUPI(null);
+              setScanning(true);
+            }}
             className="w-full"
           >
-            Upload Another
+            Scan Another
           </Button>
         </div>
       ) : (
         <Button
-          onClick={() => fileInputRef.current?.click()}
-          variant="outline"
-          className="w-full glass"
+          onClick={() => setScanning(!scanning)}
+          className="w-full"
+          aria-label={scanning ? "Stop Scanning" : "Start Scanning"}
         >
-          <Upload className="mr-2 h-4 w-4" />
-          Upload QR Code
+          {scanning ? (
+            <>
+              <CameraOff className="mr-2 h-4 w-4" />
+              Stop Scanning
+            </>
+          ) : (
+            <>
+              <Camera className="mr-2 h-4 w-4" />
+              Start Scanning
+            </>
+          )}
         </Button>
+      )}
+
+      {scanning && (
+        <div className="relative aspect-video rounded-lg overflow-hidden glass">
+          <video
+            ref={videoRef}
+            className="absolute inset-0 w-full h-full object-cover"
+            aria-label="Camera feed for QR code scanning"
+          />
+          <canvas ref={canvasRef} className="hidden" />
+        </div>
       )}
     </div>
   );
