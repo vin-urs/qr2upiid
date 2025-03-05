@@ -117,8 +117,7 @@ export function QRUpload() {
       ) : (
         <Button
           onClick={() => fileInputRef.current?.click()}
-          variant="outline"
-          className="w-full glass"
+          className="w-full"
         >
           <Upload className="mr-2 h-4 w-4" />
           Upload QR Code
