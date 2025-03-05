@@ -18,7 +18,8 @@ const App = () => (
       <Sonner />
       <BrowserRouter>
         <Routes>
-          <Route path="/" element={<Generate />} />
+          <Route path="/" element={<Navigate to="/upload" replace />} />
+          <Route path="/generate" element={<Generate />} />
           <Route path="/scan" element={<Scan />} />
           <Route path="/upload" element={<Upload />} />
           <Route path="*" element={<NotFound />} />

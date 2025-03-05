@@ -18,7 +18,7 @@ const Upload = () => {
 
         <div className="flex gap-2 justify-center">
           <Button variant="outline" className="glass" asChild>
-            <Link to="/">
+            <Link to="/generate">
               <QrCode className="mr-2 h-4 w-4" />
               Generate QR
             </Link>
