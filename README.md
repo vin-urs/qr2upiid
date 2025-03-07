@@ -10,6 +10,12 @@ This web application allows you to:
 
 The app features a minimal design with day/night themes for optimal user experience.
 
+![QR Code Generator](data/generate_dark.png)
+![QR Code Generator](data/generate_dark.png)
+![QR Code to UPIID Generator](data/upload_dark.png)
+![QR Code to UPIID Generator](data/upload_dark.png)
+
+
 ## Features
 
 * Generate QR codes for any valid UPI ID.
